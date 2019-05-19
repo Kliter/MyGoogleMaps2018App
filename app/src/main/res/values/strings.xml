@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">GoogleMaps2018</string>
-
+    <string name="google_map_api_key">AIzaSyD9SnSaSh1iriXVp6ZU9qlB_dYRlDd6B4k</string>
 
     <!-- Strings related to login -->
     <string name="prompt_email">Email</string>
@@ -48,6 +48,5 @@
     <string name="action_leave_chatroom">Leave chatroom</string>
     <string name="action_chatroom_user_list">User list</string>
     <string name="action_profile">Profile</string>
-
 
 </resources>
