@@ -49,4 +49,9 @@
     <string name="action_chatroom_user_list">User list</string>
     <string name="action_profile">Profile</string>
 
+    <string name="chatroom_actionbar_title">Chatrooms</string>
+    <string name="chatroom_dialog_title">Enter a chatroom name</string>
+    <string name="chatroom_dialog_title_positive_button">CREATE</string>
+    <string name="chatroom_dialog_title_negative_button">CANCEL</string>
+
 </resources>

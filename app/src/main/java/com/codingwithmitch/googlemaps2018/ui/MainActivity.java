@@ -178,6 +178,7 @@ public class MainActivity extends AppCompatActivity implements
 
     private void newChatroomDialog(){
 
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Enter a chatroom name");
 
