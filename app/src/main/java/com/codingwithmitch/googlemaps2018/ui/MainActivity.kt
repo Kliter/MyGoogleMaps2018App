@@ -1,5 +1,6 @@
 package com.codingwithmitch.googlemaps2018.ui
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.support.design.widget.Snackbar
@@ -19,6 +20,16 @@ import com.codingwithmitch.googlemaps2018.models.Chatroom
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
 import kotlinx.android.synthetic.main.activity_main.*
+import android.content.pm.PackageManager
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.ConnectionResult
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
+import android.location.LocationManager
+import com.codingwithmitch.googlemaps2018.ERROR_DIALOG_REQUEST
+import com.codingwithmitch.googlemaps2018.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION
+import com.codingwithmitch.googlemaps2018.PERMISSIONS_REQUEST_ENABLE_GPS
+
 
 class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecyclerClickListener {
 
@@ -32,6 +43,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
     private var mChatroomRecyclerAdapter: ChatroomRecyclerAdapter? = null
     private var mChatroomEventListener: ListenerRegistration? = null
     private var mDb: FirebaseFirestore? = null
+    private var mLocationPermissionGranted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +62,98 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
         initChatroomRecyclerView()
     }
 
+    private fun checkMapServices(): Boolean {
+        if (isServicesOK()) {
+            if (isMapsEnabled()) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun buildAlertMessageNoGps() {
+        val builder = AlertDialog.Builder(this)
+        builder.setMessage("This application requires GPS to work properly, do you want to enable it?")
+                .setCancelable(false)
+                .setPositiveButton("Yes") { _, _ ->
+                    val enableGpsIntent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                    startActivityForResult(enableGpsIntent, PERMISSIONS_REQUEST_ENABLE_GPS)
+                }
+        val alert = builder.create()
+        alert.show()
+    }
+
+    fun isMapsEnabled(): Boolean {
+        val manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        if (!manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            buildAlertMessageNoGps()
+            return false
+        }
+        return true
+    }
+
+    private fun getLocationPermission() {
+        /*
+         * Request location permission, so that we can get the location of the
+         * device. The result of the permission request is handled by a callback,
+         * onRequestPermissionsResult.
+         */
+        if (ContextCompat.checkSelfPermission(this.applicationContext,
+                        android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mLocationPermissionGranted = true
+            getChatrooms()
+        } else {
+            ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION
+            )
+        }
+    }
+
+    private fun isServicesOK(): Boolean {
+        val available = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this@MainActivity)
+
+
+        if (available == ConnectionResult.SUCCESS) { //everything is fine and the user can make map requests
+            return true
+        }
+
+        if (GoogleApiAvailability.getInstance().isUserResolvableError(available)) { // An error occurred but we can resolve it
+            val dialog = GoogleApiAvailability.getInstance().getErrorDialog(this@MainActivity, available, ERROR_DIALOG_REQUEST)
+            dialog.show()
+        } else {
+            Toast.makeText(this, "You can't make map requests", Toast.LENGTH_SHORT).show()
+        }
+        return false
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        mLocationPermissionGranted = false
+        when (requestCode) {
+            PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) { // If request is cancelled, the result arrays are empty.
+                    mLocationPermissionGranted = true
+                }
+            }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when (requestCode) {
+            PERMISSIONS_REQUEST_ENABLE_GPS -> {
+                if (mLocationPermissionGranted) {
+                    getChatrooms()
+                } else {
+                    getLocationPermission()
+                }
+            }
+        }
+    }
+
+
     private fun initSupportActionBar() {
         title = getString(R.string.chatroom_actionbar_title)
     }
@@ -62,9 +166,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
 
     private fun getChatrooms() {
         val settings: FirebaseFirestoreSettings = FirebaseFirestoreSettings.Builder().build()
-        mDb.let {
-            it?.firestoreSettings = settings
-        }
+        mDb?.firestoreSettings = settings
 
         // Get collection of chatroom from Firebase.
         val chatroomsCollection: CollectionReference = mDb?.collection(getString(R.string.collection_chatrooms))!!
@@ -80,14 +182,14 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
                 for (doc: QueryDocumentSnapshot in queryDocumentSnapshots) {
                     val chatroom: Chatroom = doc.toObject(Chatroom::class.java)
                     if (!mChatroomIds.contains(chatroom.chatroom_id)) {
-                        mChatroomIds.add(chatroom.chatroom_id)
+                        mChatroomIds.add(chatroom.chatroom_id!!)
                         mChatrooms.add(chatroom)
                     }
                 }
 
                 Log.d(TAG, "onEvent: number of chatrooms: " + mChatrooms.size)
-                mChatroomRecyclerAdapter.let {
-                    it?.notifyDataSetChanged()
+                if (mChatroomRecyclerAdapter != null) {
+                    mChatroomRecyclerAdapter?.notifyDataSetChanged()
                 }
             }
         }
@@ -128,13 +230,9 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
         chatroom.title = chatroomName
 
         val settings: FirebaseFirestoreSettings = FirebaseFirestoreSettings.Builder().build()
-        mDb.let {
-            it?.firestoreSettings = settings
-        }
+        mDb?.firestoreSettings = settings
 
-        val newChatroomRef: DocumentReference = mDb.let {
-            it?.collection(getString(R.string.collection_chatrooms))?.document()
-        }!!
+        val newChatroomRef: DocumentReference = mDb?.collection(getString(R.string.collection_chatrooms))?.document()!!
         chatroom.chatroom_id = newChatroomRef.id
         newChatroomRef.set(chatroom).addOnCompleteListener { task ->
             hideDialog()
@@ -149,6 +247,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
         }
     }
 
+
     override fun onChatroomSelected(position: Int) {
         navChatroomActivity(mChatrooms[position])
     }
@@ -157,6 +256,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
         FirebaseAuth.getInstance().signOut()
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -182,19 +282,23 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
 
     override fun onDestroy() {
         super.onDestroy()
-        mChatroomEventListener.let {
-            it?.remove()
-        }
+        mChatroomEventListener?.remove()
     }
 
     override fun onResume() {
         super.onResume()
         getChatrooms()
+        if (checkMapServices()) {
+            if (mLocationPermissionGranted) {
+                getChatrooms()
+            }
+            else {
+                getLocationPermission()
+            }
+        }
     }
 
     private fun hideDialog() {
-        progressBar.let {
-            it?.visibility = View.GONE
-        }
+        progressBar?.visibility = View.GONE
     }
 }

@@ -12,11 +12,11 @@ class ChatroomRecyclerAdapter(
         chatrooms: MutableList<Chatroom>, chatroomRecyclerClickListener: ChatroomRecyclerClickListener
 ): RecyclerView.Adapter<ChatroomRecyclerAdapter.ViewHolder>() {
 
-    public interface ChatroomRecyclerClickListener {
-        public fun onChatroomSelected(position: Int)
+    interface ChatroomRecyclerClickListener {
+        fun onChatroomSelected(position: Int)
     }
 
-    public class ViewHolder(view: View, clickListener: ChatroomRecyclerClickListener):
+    class ViewHolder(view: View, clickListener: ChatroomRecyclerClickListener):
             RecyclerView.ViewHolder(view), View.OnClickListener {
 
         var chatroomTitle: TextView? = null
@@ -29,9 +29,7 @@ class ChatroomRecyclerAdapter(
         }
 
         override fun onClick(v: View?) {
-            clickListener.let {
-                it?.onChatroomSelected(adapterPosition)
-            }
+            clickListener?.onChatroomSelected(adapterPosition)
         }
     }
 
@@ -45,8 +43,7 @@ class ChatroomRecyclerAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view: View = LayoutInflater.from(parent.context).inflate(R.layout.layout_chatroom_list_item, parent, false)
-        val holder: ViewHolder = ViewHolder(view, mChatroomRecyclerClickListener!!)
-        return holder
+        return ViewHolder(view, mChatroomRecyclerClickListener!!)
     }
 
     override fun getItemCount(): Int {
@@ -54,9 +51,6 @@ class ChatroomRecyclerAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.let {
-            it.chatroomTitle?.setText(mChatrooms[position].title)
-        }
+        holder.chatroomTitle?.text = mChatrooms[position].title
     }
-
 }

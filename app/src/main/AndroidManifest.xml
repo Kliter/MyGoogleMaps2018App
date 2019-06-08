@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.codingwithmitch.googlemaps2018">
 
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
     <uses-feature
@@ -30,7 +32,7 @@
         <activity android:name=".ui.ChatroomActivity" />
         <activity android:name=".ui.ProfileActivity"/>
 
-        <meta-data
+	    <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/google_map_api_key"/>
         <meta-data
