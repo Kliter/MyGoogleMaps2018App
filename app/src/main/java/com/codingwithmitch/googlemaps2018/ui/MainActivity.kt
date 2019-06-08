@@ -1,5 +1,6 @@
 package com.codingwithmitch.googlemaps2018.ui
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -21,6 +22,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
 import kotlinx.android.synthetic.main.activity_main.*
 import android.content.pm.PackageManager
+import android.location.Location
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.ConnectionResult
 import android.support.v4.app.ActivityCompat
@@ -29,6 +31,11 @@ import android.location.LocationManager
 import com.codingwithmitch.googlemaps2018.ERROR_DIALOG_REQUEST
 import com.codingwithmitch.googlemaps2018.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION
 import com.codingwithmitch.googlemaps2018.PERMISSIONS_REQUEST_ENABLE_GPS
+import com.codingwithmitch.googlemaps2018.models.User
+import com.codingwithmitch.googlemaps2018.models.UserLocation
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import org.w3c.dom.Document
 
 
 class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecyclerClickListener {
@@ -44,6 +51,8 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
     private var mChatroomEventListener: ListenerRegistration? = null
     private var mDb: FirebaseFirestore? = null
     private var mLocationPermissionGranted = false
+    private var mFusedLocationProviderClient: FusedLocationProviderClient? = null
+    private var mUserLocation: UserLocation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,9 +66,68 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
             }
         }
 
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+
         mDb = FirebaseFirestore.getInstance()
         initSupportActionBar()
         initChatroomRecyclerView()
+    }
+
+    private fun getUserDetails() {
+        if (mUserLocation == null) {
+            mUserLocation = UserLocation()
+
+            val userRef: DocumentReference = mDb
+                    ?.collection(getString(R.string.collection_users))
+                    ?.document(FirebaseAuth.getInstance().uid!!)!!
+            userRef.get().addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "onComplete: successfully get the user details.")
+                    val user: User = task.result?.toObject(User::class.java)!!
+                    mUserLocation!!.user = user
+                    getLastKnownLocation()
+                }
+            }
+        }
+    }
+
+    private fun saveUserLocation() {
+        if (mUserLocation != null) {
+            val locationRef: DocumentReference = mDb
+                    ?.collection(getString(R.string.collection_user_locations))
+                    ?.document(FirebaseAuth.getInstance().uid!!)!!
+
+            locationRef.set(mUserLocation!!).addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "saveUserLocation: " +
+                            "\n inserted user location into database. " +
+                            "\n latitude: ${mUserLocation!!.geo_point?.latitude} " +
+                            "\n longitude: ${mUserLocation!!.geo_point?.longitude}")
+                }
+            }
+        }
+    }
+
+    private fun getLastKnownLocation() {
+        Log.d(TAG, "getLastKnownLocation: called.")
+        mFusedLocationProviderClient?.lastLocation?.addOnCompleteListener { task ->
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                if (task.isSuccessful) {
+                    if (task.result != null) {
+                        val location: Location = task.result!!
+                        val geoPoint = GeoPoint(location.latitude, location.longitude)
+                        Log.d(TAG, "onComplete: latitude ${geoPoint.latitude}")
+                        Log.d(TAG, "onComplete: longitude ${geoPoint.longitude}")
+
+                        mUserLocation?.let {
+                            it.geo_point = geoPoint
+                            it.timestamp = null
+                        }
+                        saveUserLocation()
+                    }
+                }
+            }
+        }
     }
 
     private fun checkMapServices(): Boolean {
@@ -103,6 +171,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
                         android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             mLocationPermissionGranted = true
             getChatrooms()
+            getUserDetails()
         } else {
             ActivityCompat.requestPermissions(
                     this,
@@ -146,6 +215,7 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
             PERMISSIONS_REQUEST_ENABLE_GPS -> {
                 if (mLocationPermissionGranted) {
                     getChatrooms()
+                    getUserDetails()
                 } else {
                     getLocationPermission()
                 }
@@ -288,6 +358,8 @@ class MainActivity: AppCompatActivity(), ChatroomRecyclerAdapter.ChatroomRecycle
     override fun onResume() {
         super.onResume()
         getChatrooms()
+        getUserDetails()
+
         if (checkMapServices()) {
             if (mLocationPermissionGranted) {
                 getChatrooms()
